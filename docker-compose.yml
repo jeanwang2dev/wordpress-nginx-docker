@@ -1,0 +1,87 @@
+# This yaml file is for setup local environment for wordpress theme development
+version: '3'
+  
+services:
+  
+  # MySQL 
+  db:
+    build: 
+      context: ./bin/db
+    image: test_dev_mysql:1.0
+    container_name: test_dev_mysql
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - 3306:3306
+    volumes:
+      - mysql-vol:/var/lib/mysql
+    networks:
+      - dev_nt
+
+  # WordPress
+  wp:
+    depends_on:
+      - db  
+    build: 
+      context: ./bin/wp  
+    image: test_dev_wp:1.0
+    container_name: test_dev_wp
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: ${MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE}
+      WORDPRESS_TABLE_PREFIX: wp_
+      WORDPRESS_DEBUG: 1
+      LOCAL_USER_ID: ${LOCAL_USER_ID}
+      LOCAL_USER_NAME: ${LOCAL_USER_NAME}
+    volumes:
+      - ./src:/var/www/html/ 
+      - ./uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+    networks:
+      - dev_nt
+    stdin_open: true
+    tty: true
+
+  # PHP-MyAdmin   
+  php-myadmin:
+    image: phpmyadmin/phpmyadmin:4.9
+    container_name: test_dev_phpmyadmin
+    ports:
+      - 8081:80
+    environment:
+      PMA_HOST: db:3306
+      PMA_PORT: 3306 
+    networks:
+      - dev_nt
+    links:
+      - db
+
+  # NGINX
+  nginx:
+    depends_on:
+      - wp
+    image: nginx:1.10.3-alpine 
+    container_name: test_dev_nginx
+    restart: unless-stopped
+    volumes:  
+      - ./src:/var/www/html
+      - ./nginx-conf:/etc/nginx/conf.d
+    ports:
+      - 80:80
+    networks:
+      - dev_nt
+
+# using this named volume ensures db's hang around between "up's"
+volumes:
+    mysql-vol:
+networks:
+  dev_nt:
+    driver: bridge
